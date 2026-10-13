@@ -2,7 +2,7 @@
 
 A small, dependency-free experiment for the companion article **Fast Most of the Time: Investigating Tail Latency in Modern C++**.
 
-This is an order-state processing kernel, not an exchange simulator, complete order book, or production HFT benchmark. It isolates mechanisms and preserves a deterministic business-work trace across variants. The article is a methodology-first draft: local validation is not evidence of production performance.
+This is an order-state processing kernel, not an exchange simulator, complete order book, or production HFT benchmark. It isolates mechanisms and preserves a deterministic business-work trace across variants. The article includes 90 local one-million-event trials on an Apple M4 Mac mini: these short desktop measurements are not evidence of production performance. See [measured results](results/RESULTS.md).
 
 ## Build and verify
 
@@ -94,6 +94,7 @@ Create a timeline near an outlier, a complementary CDF for service/response, and
 - `src/benchmark.cpp`: experiment and built-in state/quantile tests.
 - `tests/test_benchmark.py`: separate integration tests.
 - `run_suite.py`: repeated randomized trials and summary collection.
-- `results/VALIDATION.md`: actual execution status from authoring environment.
+- `results/VALIDATION.md`: build and correctness checks from the local run.
+- `results/RESULTS.md`: measured results, per-trial tails, environment and reproduction commands.
 
 No license has been selected on your behalf; add your chosen license before inviting reuse under explicit licensing terms.

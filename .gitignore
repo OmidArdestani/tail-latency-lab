@@ -1,4 +1,5 @@
 tail_bench
 results/*
 !results/VALIDATION.md
+!results/RESULTS.md
 __pycache__/

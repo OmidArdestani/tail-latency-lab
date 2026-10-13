@@ -2,7 +2,7 @@
 
 *A reproducible experiment with allocation, container growth, logging and scheduled order-event replay.*
 
-**Status:** Methodology article with runnable C++20 experiments. The code has been checked for correctness in the authoring environment. No production HFT performance results or measured speedups are claimed. The empirical results section is explicitly pending controlled measurements on the target machine.
+**Status:** Methodology article with measured local results from 90 one-million-event trials on an Apple M4 Mac mini (2026-10-13). Correctness checks passed. These short, unpinned desktop measurements do not establish production HFT performance or scheduler attribution.
 
 ## 1. The request that the average hides
 
@@ -129,23 +129,48 @@ Do not average several p99.9 values and label the result the pooled p99.9. Show 
 
 Finally, inspect more than one visualization: a complementary CDF for service and response, a per-run p99.9 comparison, and a timeline around selected outliers. An aggregate statistic identifies a symptom; temporal evidence helps investigate the mechanism.
 
-## 12. Results: what is established and what is pending
+## 12. Results: local Apple M4 measurements
 
-The accompanying validation checks establish that the variants execute equivalent order-state work, produce expected record counts, and preserve the timing identity `response = wait + service`. They also check growth/pause markers and quantile ordering.
+On 2026-10-13, all six variants completed five independent process trials at each of three offered rates, with one million events per trial: 90 million measured events plus a one-million-event pilot. The machine was a 16 GB Apple M4 Mac mini (4 performance and 6 efficiency cores), running macOS 27.0.1 / Darwin 27.0.0. The benchmark was rebuilt with Apple clang 21.0.0, libc++, and `-std=c++20 -O3 -DNDEBUG -Wall -Wextra -Wpedantic`, from source revision `1dc3adc276ce23d503d5238bbb475a335b991db2`.
 
-They do **not** establish a speedup, an HFT latency budget, or production readiness. Controlled target-machine measurements remain pending.
+The unpaced pilot reported 34.1161 million events/s. Rounding the intervals to 117, 59 and 37 ns produced offered rates of approximately 8.547, 16.949 and 27.027 million events/s. Every mode received the same schedule within a rate batch. Mode order was randomized with seed 42; rate batches ran in ascending order. Logging used local APFS storage. No CPU pinning, isolation or controlled competing workload was configured, and existing desktop activity remained.
 
-The publication results table should be populated from the generated CSV, not estimates:
+The table reports the range of **five per-trial p99.9 values**, not a pooled percentile. Each row represents five million observations. Largest response is the largest individual response across the five trials. All table values are microseconds.
 
-| Comparison | Offered rate | Trials / events | Service p99.9 | Response p99.9 | Observed max | Attribution evidence |
-|---|---|---|---|---|---|---|
-| A: allocation | Pending | Pending | Pending | Pending | Pending | State transition samples |
-| B: growth | Pending | Pending | Pending | Pending | Pending | Capacity markers |
-| C: logging | Pending | Pending | Pending | Pending | Pending | Logging/flush configuration |
-| D: synthetic control | Pending | Pending | Pending | Pending | Pending | Explicit pause markers |
-| E: scheduling | Pending | Pending | Pending | Pending | Pending | Aligned scheduling evidence |
+| Pilot fraction / interval | Mode | Service p99.9 range (µs) | Response p99.9 range (µs) | Largest response (µs) |
+|---|---|---:|---:|---:|
+| 25% / 117 ns | baseline | 0.042–0.042 | 1.173–9.659 | 21.189 |
+| 25% / 117 ns | allocate | 0.042–0.084 | 0.977–4.849 | 21.557 |
+| 25% / 117 ns | grow | 0.084–0.084 | 1.016–6.622 | 27.238 |
+| 25% / 117 ns | log-buffered | 0.042–0.208 | 138.538–1,341.417 | 1,406.425 |
+| 25% / 117 ns | log-flush | 6.292–24.916 | 1,776,016.950–1,954,692.075 | 1,956,559.284 |
+| 25% / 117 ns | pause | 0.042–0.084 | 49.363–49.849 | 68.663 |
+| 50% / 59 ns | baseline | 0.042–0.083 | 8.165–122.002 | 132.196 |
+| 50% / 59 ns | allocate | 0.042–0.083 | 9.401–69.318 | 74.270 |
+| 50% / 59 ns | grow | 0.125–0.167 | 6.246–1,595.263 | 1,602.041 |
+| 50% / 59 ns | log-buffered | 0.083–0.125 | 423.482–3,261.784 | 3,266.476 |
+| 50% / 59 ns | log-flush | 11.083–27.334 | 1,856,574.351–2,084,745.684 | 2,086,819.059 |
+| 50% / 59 ns | pause | 0.042–0.125 | 49.952–99.948 | 106.517 |
+| 80% / 37 ns | baseline | 0.042–0.209 | 5,438.287–8,142.328 | 8,148.953 |
+| 80% / 37 ns | allocate | 0.042–0.084 | 8,553.829–10,038.328 | 10,043.828 |
+| 80% / 37 ns | grow | 0.125–0.125 | 5,444.787–6,771.278 | 6,773.657 |
+| 80% / 37 ns | log-buffered | 0.083–0.167 | 18,839.454–20,071.829 | 20,101.496 |
+| 80% / 37 ns | log-flush | 7.000–8.292 | 1,823,550.829–1,925,407.120 | 1,927,241.870 |
+| 80% / 37 ns | pause | 0.042–0.083 | 10,248.204–11,095.579 | 11,151.704 |
 
-Until that table is populated, this is a methodology article with a runnable companion, not an empirical performance report.
+Several observations matter more than a single ranking:
+
+- At the lowest rate, baseline service p99.9 was 0.042 µs in all five trials, while response p99.9 ranged from 1.173 to 9.659 µs. Allocation overlapped baseline at this resolution; these data do not justify a general allocation speedup claim.
+- Per-event flushing could not sustain any offered rate. Its response p99.9 reached approximately 1.78–2.08 seconds across the matrix, although service p99.9 remained in microseconds. This is accumulated virtual backlog under overload, not a two-second individual `fflush` call or a durability measurement.
+- At the highest offered rate, even baseline response p99.9 reached 5.438–8.142 ms. The unpaced pilot omits pacing work, so a nominal 80% of pilot throughput is not necessarily below the paced harness's capacity.
+- The synthetic pause appears clearly in response tails: at the lowest rate, response p99.9 was 49.363–49.849 µs. Only 100 of a million events contain injected pauses (0.01%), so service p99.9 can miss those interruptions. Marker counts identify injections; they do not attribute unrelated outliers to the scheduler.
+- Growth mode recorded 3,183 capacity changes per trial. Its service p99.9 exceeded baseline at the lowest rate, but event-level correlation is still needed to attribute specific slow samples to growth.
+
+All runs returned checksum `126013238312`. The optimized build emitted no warnings and all three integration tests passed. All 270 summary rows passed event-count, interval, checksum, percentile-order and marker-count checks. The integration tests verify timing identities and log sizes on smaller traces; they are not a full independent audit of all 90 million raw samples.
+
+The pilot service p50 was 0 ns and p99/p99.9 were 42 ns, exposing clock granularity at this timescale. Measured trial durations were approximately 0.042–2.146 seconds: sufficient for the planned sample count, but too short to characterize long-period OS effects. Heterogeneous core placement, power state and desktop interference were not controlled. No scheduler traces, aligned outlier timelines or complementary CDFs were collected for this report; controlled scheduling experiment E remains pending.
+
+[Detailed results](results/RESULTS.md) retain every trial's service and response p99.9, environment details, exact commands and data locations. [Validation](results/VALIDATION.md) records the checks. Raw samples and binary logs are retained locally, compressed after each rate batch and excluded from Git. These measurements demonstrate the distinction between service latency and accumulated response delay on this machine; they do not establish a production latency budget or universal optimization ranking.
 
 ## 13. Optimize an explanation, not just a number
 
